@@ -12,6 +12,14 @@ const debug = _debug('electron-localshortcut');
 const ANY_WINDOW = {};
 
 const windowsWithShortcuts = new WeakMap();
+// NOTE(@averyyip): windowsWithShortcuts.get(wc) returns object of states mapping to shortcutsOfWindow
+/*
+ * TODO
+ * save current hotkeys and restore later (like git stash and git stash apply)
+ * register hotkeys for state and window
+ * enable hotkeys only for given state
+ */
+
 
 const title = win => {
 	if (win) {
@@ -50,6 +58,7 @@ ${stack}
 function disableAll(win) {
 	debug(`Disabling all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
+	// NOTE(@averyyip): Disabled for given window
 	const shortcutsOfWindow = windowsWithShortcuts.get(wc);
 
 	for (const shortcut of shortcutsOfWindow) {
@@ -66,7 +75,8 @@ function enableAll(win) {
 	debug(`Enabling all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindow = windowsWithShortcuts.get(wc);
-
+	
+	// NOTE(@averyyip) Enable for all states in given window
 	for (const shortcut of shortcutsOfWindow) {
 		shortcut.enabled = true;
 	}
@@ -82,6 +92,7 @@ function unregisterAll(win) {
 	debug(`Unregistering all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindow = windowsWithShortcuts.get(wc);
+	// NOTE(@averyyip) Unregister for all states in current window
 	if (shortcutsOfWindow && shortcutsOfWindow.removeListener) {
 		// Remove listener from window
 		shortcutsOfWindow.removeListener();
@@ -122,6 +133,7 @@ function _findShortcut(event, shortcutsOfWindow) {
 }
 
 const _onBeforeInput = shortcutsOfWindow => (e, input) => {
+	// NOTE(@averyyip): For any input to window, check if it matches shortcut
 	if (input.type === 'keyUp') {
 		return;
 	}
@@ -146,11 +158,13 @@ const _onBeforeInput = shortcutsOfWindow => (e, input) => {
  * @param  {BrowserWindow} win - BrowserWindow instance to register.
  * This argument could be omitted, in this case the function register
  * the shortcut on all app windows.
+ * @param  {String} state - the name of the state
  * @param  {String|Array<String>} accelerator - the shortcut to register
  * @param  {Function} callback    This function is called when the shortcut is pressed
  * and the window is focused and not minimized.
  */
-function register(win, accelerator, callback) {
+function register(win, state, accelerator, callback) {
+	// NOTE(@averyyip) Add additional param called stateName, and register for win & state
 	let wc;
 	if (typeof callback === 'undefined') {
 		wc = ANY_WINDOW;
@@ -163,7 +177,7 @@ function register(win, accelerator, callback) {
 	if (Array.isArray(accelerator) === true) {
 		accelerator.forEach(accelerator => {
 			if (typeof accelerator === 'string') {
-				register(win, accelerator, callback);
+				register(win, state, accelerator, callback);
 			}
 		});
 		return;
@@ -174,14 +188,17 @@ function register(win, accelerator, callback) {
 
 	debug(`${accelerator} seems a valid shortcut sequence.`);
 
-	let shortcutsOfWindow;
+	let shortcutsOfWindowByState;
+	let shortcutOfWindow;
 	if (windowsWithShortcuts.has(wc)) {
 		debug('Window has others shortcuts registered.');
-		shortcutsOfWindow = windowsWithShortcuts.get(wc);
+		shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
+		shortcutsOfWindow = shortcutsOfWindowByState[state];
 	} else {
 		debug('This is the first shortcut of the window.');
 		shortcutsOfWindow = [];
-		windowsWithShortcuts.set(wc, shortcutsOfWindow);
+		shortcutsOfWindowByState = { [state]: shortcutsOfWindow };
+		windowsWithShortcuts.set(wc, shortcutsOfWindowByState);
 
 		if (wc === ANY_WINDOW) {
 			const keyHandler = _onBeforeInput(shortcutsOfWindow);
@@ -240,6 +257,7 @@ function register(win, accelerator, callback) {
  * @param  {String|Array<String>} accelerator - the shortcut to unregister
  */
 function unregister(win, accelerator) {
+	// NOTE(@averyyip) Unregister accelerator for win and state
 	let wc;
 	if (typeof accelerator === 'undefined') {
 		wc = ANY_WINDOW;
