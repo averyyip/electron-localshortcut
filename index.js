@@ -12,12 +12,12 @@ const debug = _debug('electron-localshortcut');
 const ANY_WINDOW = {};
 
 const windowsWithShortcuts = new WeakMap();
-// NOTE(@averyyip): windowsWithShortcuts.get(wc) returns object of states mapping to shortcutsOfWindow
 /*
- * TODO
- * save current hotkeys and restore later (like git stash and git stash apply)
- * register hotkeys for state and window
+ * NOTES & TODO
  * enable hotkeys only for given state
+ * The given implementation continuously add hotkeys even if the key has been registered
+ * before. This could result in a memory leak after long usages if components are 
+ * continuously registering the same hotkey over and over again.
  */
 
 
@@ -58,7 +58,6 @@ ${stack}
  * @param  {BrowserWindow} win BrowserWindow instance
  */
 function disableAll(win) {
-	console.log('disableAll');
 	debug(`Disabling all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
@@ -95,17 +94,14 @@ function enableAll(win) {
  * @param  {BrowserWindow} win BrowserWindow instance
  */
 function unregisterAll(win) {
-	console.log('unregisterAll');
 	debug(`Unregistering all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
 
 	for (const state in shortcutsOfWindowByState) {
 		const shortcutsOfWindow = shortcutsOfWindowByState[state];
-		if (shortcutsOfWindow && shortcutsOfWindow.removeListener) {
-			// Remove listener from window
-			shortcutsOfWindow.removeListener();
-		}
+		shortcutsOfWindow.removeListener();
+		delete shortcutsOfWindowByState[state];
 	}
 	windowsWithShortcuts.delete(wc);
 }
@@ -155,7 +151,6 @@ const _onBeforeInput = shortcutsOfWindow => (e, input) => {
 
 	debug(`before-input-event: ${input} is translated to: ${event}`);
 	for (const {eventStamp, callback, enabled} of shortcutsOfWindow) {
-		console.log(enabled);
 		if (enabled && equals(eventStamp, event)) {
 			debug(`eventStamp: ${eventStamp} match`);
 			callback();
@@ -351,7 +346,14 @@ function isRegistered(win, state, accelerator) {
 	_checkAccelerator(accelerator);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
+	if (!shortcutsOfWindowByState) {
+		throw new Error('No shortcuts registered for this window');
+	}
+
 	const shortcutsOfWindow = shortcutsOfWindowByState[state];
+	if (!shortcutsOfWindow) {
+		throw new Error('No shortcuts registered for this state');
+	}
 	const eventStamp = toKeyEvent(accelerator);
 
 	return _findShortcut(eventStamp, shortcutsOfWindow) !== -1;
