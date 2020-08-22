@@ -75,7 +75,6 @@ function disableAll(win) {
  * @param  {BrowserWindow} win BrowserWindow instance
  */
 function enableAll(win) {
-	console.log('enableAll');
 	debug(`Enabling all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
@@ -83,6 +82,27 @@ function enableAll(win) {
 	for (const state in shortcutsOfWindowByState) {
 		for (const shortcut of shortcutsOfWindowByState[state]) {
 			shortcut.enabled = true;
+		}
+	}
+}
+
+/**
+ * Enable all of the shortcuts registered on the BrowserWindow instance only for
+ * given state
+ * @param  {BrowserWindow} win BrowserWindow instance
+ */
+function enableOnlyForState(win, state) {
+	debug(`Enabling all shortcuts on window ${title(win)} for state`);
+	const wc = win.webContents;
+	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
+
+	for (const currState in shortcutsOfWindowByState) {
+		for (const shortcut of shortcutsOfWindowByState[currState]) {
+		  if (state === currState) {
+				shortcut.enabled = true;
+			} else {
+				shortcut.enabled = false;
+			}
 		}
 	}
 }
@@ -364,6 +384,7 @@ module.exports = {
 	unregister,
 	isRegistered,
 	unregisterAll,
+	enableOnlyForState,
 	enableAll,
 	disableAll
 };
