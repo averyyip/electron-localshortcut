@@ -22,7 +22,6 @@ const windowsWithShortcuts = new WeakMap();
 
 
 const title = win => {
-	console.log('title');
 	if (win) {
 		try {
 			return win.getTitle();
@@ -36,7 +35,6 @@ const title = win => {
 };
 
 function _checkAccelerator(accelerator) {
-	console.log('checkAccelerator');
 	if (!isAccelerator(accelerator)) {
 		const w = {};
 		Error.captureStackTrace(w);
@@ -127,7 +125,6 @@ function unregisterAll(win) {
 }
 
 function _normalizeEvent(input) {
-	console.log('normalizeEvent');
 	const normalizedEvent = {
 		code: input.code,
 		key: input.key
@@ -147,7 +144,6 @@ function _normalizeEvent(input) {
 }
 
 function _findShortcut(event, shortcutsOfWindow) {
-	console.log('findShortcut', shortcutsOfWindow);
 	let i = 0;
 	for (const shortcut of shortcutsOfWindow) {
 		if (equals(shortcut.eventStamp, event)) {
@@ -161,8 +157,6 @@ function _findShortcut(event, shortcutsOfWindow) {
 }
 
 const _onBeforeInput = shortcutsOfWindow => (e, input) => {
-	console.log('onBeforeInput');
-	// NOTE(@averyyip): For any input to window, check if it matches shortcut
 	if (input.type === 'keyUp') {
 		return;
 	}
@@ -193,8 +187,6 @@ const _onBeforeInput = shortcutsOfWindow => (e, input) => {
  * and the window is focused and not minimized.
  */
 function register(win, state, accelerator, callback) {
-	// NOTE(@averyyip) Add additional param called stateName, and register for win & state
-	console.log('REGISTERING');
 	let wc;
 	if (typeof callback === 'undefined') {
 		wc = ANY_WINDOW;
@@ -362,7 +354,6 @@ function unregister(win, state, accelerator) {
  * @return {Boolean} - if the shortcut `accelerator` is registered on `window`.
  */
 function isRegistered(win, state, accelerator) {
-	console.log('isRegistered');
 	_checkAccelerator(accelerator);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
