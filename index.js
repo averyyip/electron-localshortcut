@@ -22,6 +22,7 @@ const windowsWithShortcuts = new WeakMap();
 
 
 const title = win => {
+	console.log('title');
 	if (win) {
 		try {
 			return win.getTitle();
@@ -35,6 +36,7 @@ const title = win => {
 };
 
 function _checkAccelerator(accelerator) {
+	console.log('checkAccelerator');
 	if (!isAccelerator(accelerator)) {
 		const w = {};
 		Error.captureStackTrace(w);
@@ -56,6 +58,7 @@ ${stack}
  * @param  {BrowserWindow} win BrowserWindow instance
  */
 function disableAll(win) {
+	console.log('disableAll');
 	debug(`Disabling all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
@@ -73,6 +76,7 @@ function disableAll(win) {
  * @param  {BrowserWindow} win BrowserWindow instance
  */
 function enableAll(win) {
+	console.log('enableAll');
 	debug(`Enabling all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
@@ -91,6 +95,7 @@ function enableAll(win) {
  * @param  {BrowserWindow} win BrowserWindow instance
  */
 function unregisterAll(win) {
+	console.log('unregisterAll');
 	debug(`Unregistering all shortcuts on window ${title(win)}`);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
@@ -106,6 +111,7 @@ function unregisterAll(win) {
 }
 
 function _normalizeEvent(input) {
+	console.log('normalizeEvent');
 	const normalizedEvent = {
 		code: input.code,
 		key: input.key
@@ -125,6 +131,7 @@ function _normalizeEvent(input) {
 }
 
 function _findShortcut(event, shortcutsOfWindow) {
+	console.log('findShortcut', shortcutsOfWindow);
 	let i = 0;
 	for (const shortcut of shortcutsOfWindow) {
 		if (equals(shortcut.eventStamp, event)) {
@@ -138,6 +145,7 @@ function _findShortcut(event, shortcutsOfWindow) {
 }
 
 const _onBeforeInput = shortcutsOfWindow => (e, input) => {
+	console.log('onBeforeInput');
 	// NOTE(@averyyip): For any input to window, check if it matches shortcut
 	if (input.type === 'keyUp') {
 		return;
@@ -170,6 +178,7 @@ const _onBeforeInput = shortcutsOfWindow => (e, input) => {
  */
 function register(win, state, accelerator, callback) {
 	// NOTE(@averyyip) Add additional param called stateName, and register for win & state
+	console.log('REGISTERING');
 	let wc;
 	if (typeof callback === 'undefined') {
 		wc = ANY_WINDOW;
@@ -193,18 +202,20 @@ function register(win, state, accelerator, callback) {
 
 	debug(`${accelerator} seems a valid shortcut sequence.`);
 
-	let shortcutsOfWindowByState;
-	let shortcutsOfWindow;
-	if (windowsWithShortcuts.has(wc)) {
-		debug('Window has others shortcuts registered.');
-		shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
-		shortcutsOfWindow = shortcutsOfWindowByState[state];
-	} else {
-		debug('This is the first shortcut of the window.');
-		shortcutsOfWindow = [];
-		shortcutsOfWindowByState = { [state]: shortcutsOfWindow };
+	let shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
+	if (!shortcutsOfWindowByState) {
+		shortcutsOfWindowByState = {};
 		windowsWithShortcuts.set(wc, shortcutsOfWindowByState);
-
+	} 
+	
+	let shortcutsOfWindow = shortcutsOfWindowByState[state];
+	if (!shortcutsOfWindowByState[state]) {
+		shortcutsOfWindow = [];
+		shortcutsOfWindowByState[state] = shortcutsOfWindow;
+	}
+	
+	if (shortcutsOfWindow.length === 0) {
+		debug('This is the first shortcut of the window.');
 		if (wc === ANY_WINDOW) {
 			const keyHandler = _onBeforeInput(shortcutsOfWindow);
 			const enableAppShortcuts = (e, win) => {
@@ -223,7 +234,7 @@ function register(win, state, accelerator, callback) {
 			// Enable shortcut on future windows
 			app.on('browser-window-created', enableAppShortcuts);
 
-			shortcutsOfWindowByState.removeListener = () => {
+			shortcutsOfWindow.removeListener = () => {
 				const windows = BrowserWindow.getAllWindows();
 				windows.forEach(win =>
 					win.webContents.removeListener('before-input-event', keyHandler)
@@ -235,9 +246,9 @@ function register(win, state, accelerator, callback) {
 			wc.on('before-input-event', keyHandler);
 
 			// Save a reference to allow remove of listener from elsewhere
-			shortcutsOfWindowByState.removeListener = () =>
+			shortcutsOfWindow.removeListener = () =>
 				wc.removeListener('before-input-event', keyHandler);
-			wc.once('closed', shortcutsOfWindowByState.removeListener);
+			wc.once('closed', shortcutsOfWindow.removeListener);
 		}
 	}
 
@@ -262,7 +273,6 @@ function register(win, state, accelerator, callback) {
  * @param  {String|Array<String>} accelerator - the shortcut to unregister
  */
 function unregister(win, state, accelerator) {
-	// NOTE(@averyyip) Unregister accelerator for win and state
 	let wc;
 	if (typeof accelerator === 'undefined') {
 		wc = ANY_WINDOW;
@@ -291,13 +301,16 @@ function unregister(win, state, accelerator) {
 
 	debug(`${accelerator} seems a valid shortcut sequence.`);
 
-	if (!windowsWithShortcuts.has(wc)) {
-		debug('Early return because window has never had shortcuts registered.');
-		return;
+	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
+	if(!shortcutsOfWindowByState) {
+		debug('Early return because window never had any shortcuts registered.');
 	}
 
-	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
 	const shortcutsOfWindow = shortcutsOfWindowByState[state];
+	if (!shortcutsOfWindow) {
+		debug('Early return because state never had any shortcuts registered.');
+		return;
+	}	
 
 	const eventStamp = toKeyEvent(accelerator);
 	const shortcutIdx = _findShortcut(eventStamp, shortcutsOfWindow);
@@ -311,15 +324,14 @@ function unregister(win, state, accelerator) {
 	// we remove it early from the WeakMap
 	// and unregistering the event listener
 	if (shortcutsOfWindow.length === 0) {
+		// Remove listener from window
+		shortcutsOfWindow.removeListener();
 		delete shortcutsOfWindowByState[state];
 	}
 
-	if (Object.keys(shortcutsOfWindowByState).length === 0) {
-		// Remove listener from window
-		shortcutsOfWindowByState.removeListener();
-
+	if (Object.keys(shortcutsOfWindowByState) === 0) {
 		// Remove window from shortcuts catalog
-		shortcutsOfWindowByState.delete(wc);
+		windowsWithShortcuts.delete(wc);
 	}
 }
 
@@ -334,6 +346,7 @@ function unregister(win, state, accelerator) {
  * @return {Boolean} - if the shortcut `accelerator` is registered on `window`.
  */
 function isRegistered(win, state, accelerator) {
+	console.log('isRegistered');
 	_checkAccelerator(accelerator);
 	const wc = win.webContents;
 	const shortcutsOfWindowByState = windowsWithShortcuts.get(wc);
